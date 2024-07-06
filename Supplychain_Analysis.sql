@@ -77,3 +77,142 @@ having
      SUM(amount) BETWEEN 500000 AND 1000000
 ORDER BY 
     sum(amount) DESC;
+
+/*8) Show employee number, Sales Person (combination of first and last names of employees), 
+unique customers for each employee number and sort the data by highest to lowest unique customers.
+Tables: Employees, Customers*/
+SELECT
+    e.employeeNumber,
+    CONCAT(e.firstName, ' ', e.lastName) AS SalesPerson,
+    COUNT(DISTINCT c.customerNumber) AS UniqueCustomers
+FROM
+    Employees e
+JOIN
+    Customers c ON e.employeeNumber = c.salesRepEmployeeNumber
+GROUP BY
+    e.employeeNumber, SalesPerson
+ORDER BY
+    UniqueCustomers DESC;
+
+/*9) Show total quantities, total quantities in stock, left over quantities for each product and each customer. 
+Sort the data by customer number.
+
+Tables: Customers, Orders, Orderdetails, Products*/    
+
+SELECT
+    c.customerNumber,
+    c.customerName,
+    p.productCode,
+    p.productName,
+    SUM(od.quantityOrdered) AS totalQuantities,
+    p.quantityInStock AS totalQuantitiesInStock,
+    (p.quantityInStock - SUM(od.quantityOrdered)) AS leftOverQuantities
+FROM
+    Customers c
+JOIN
+    Orders o ON c.customerNumber = o.customerNumber
+JOIN
+    Orderdetails od ON o.orderNumber = od.orderNumber
+JOIN
+    Products p ON od.productCode = p.productCode
+GROUP BY
+    c.customerNumber,
+    p.productCode
+ORDER BY
+    c.customerNumber;
+
+/*10)Create the view products status. Show year wise total products sold. Also find the percentage of total value for each year. 
+The output should look as shown in below figure.*/
+
+CREATE VIEW products_status AS
+select year(orderDate) year,
+concat(count(orders.orderNumber),'(',round(count(orders.orderNumber)*100/sum(count(orders.orderNumber)) over()),'%',')') as value
+from orders
+left join
+orderdetails on orders.orderNumber=orderdetails.orderNumber
+group by 
+year;
+    
+select * from products_status;
+
+/*11) Create a stored procedure GetCustomerLevel which takes input as customer number and gives the output as either Platinum, Gold or Silver as per below criteria.
+
+Table: Customers
+
+●	Platinum: creditLimit > 100000
+●	Gold: creditLimit is between 25000 to 100000
+●	Silver: creditLimit < 25000
+*/
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `GetCustomerLevel`(in customerNumbers int,out customerLevel varchar(50))
+BEGIN
+    declare totalPurchaseAmount Decimal(10,2);
+    
+    SELECT sum(amount) into totalPurchaseAmount
+    FROM payments
+    WHERE customerNumber = customerNumbers;
+
+    SET customerLevel =
+        CASE
+            WHEN totalPurchaseAmount >= 100000 THEN 'Platinum'
+            WHEN totalPurchaseAmount >= 50000 THEN 'Gold'
+            ELSE 'Silver'
+            End;
+END
+
+CALL GetCustomerLevel(456, @level);
+SELECT @level;
+
+/*12)	Create a stored procedure Get_country_payments which takes in year and country as inputs and gives year wise, 
+country wise total amount as an output. Format the total amount to nearest thousand unit (K)
+Tables: Customers, Payments*/
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `Get_country_payments`(IN p_year INT, IN p_country VARCHAR(50))
+BEGIN
+    -- Create a temporary table to store the results
+    CREATE TEMPORARY TABLE temp_results (
+        Year INT,
+        Country VARCHAR(50),
+        TotalAmountFormatted VARCHAR(20)
+    );
+
+    -- Calculate the total payment amounts for the specified year and country
+    INSERT INTO temp_results (Year, Country, TotalAmountFormatted)
+    SELECT
+        YEAR(P.paymentDate) AS Year,
+        C.country AS Country,
+        CONCAT(ROUND(SUM(P.amount) / 1000, 0), 'K') AS TotalAmountFormatted
+    FROM Payments P
+    JOIN Customers C ON P.customerNumber = C.customerNumber
+    WHERE YEAR(P.paymentDate) = p_year AND C.country = p_country
+    GROUP BY Year, Country;
+
+CALL Get_country_payments(2004, 'USA');
+
+
+/*13)	Calculate year wise, month name wise count of orders and year over year (YoY) percentage change. 
+Format the YoY values in no decimals and show in % sign.
+Table: Orders
+*/
+
+SELECT
+    YEAR(orderDate) AS OrderYear,
+    DATE_FORMAT(orderDate, '%b') AS MonthName,
+    COUNT(*) AS OrderCount,
+    IFNULL(
+        CONCAT(
+            FORMAT(
+                (COUNT(*) - LAG(COUNT(*)) OVER(PARTITION BY YEAR(orderDate) ORDER BY MONTH(orderDate))) / LAG(COUNT(*)) OVER(PARTITION BY YEAR(orderDate) ORDER BY MONTH(orderDate)) * 100,
+                0
+            ),
+            '%'
+        ),
+        'NA'
+    ) AS YoYChange
+FROM
+    Orders
+GROUP BY
+    OrderYear, MonthName
+ORDER BY
+    OrderYear, MONTH(orderDate);
+    
