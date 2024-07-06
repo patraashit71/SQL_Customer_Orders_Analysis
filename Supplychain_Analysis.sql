@@ -215,4 +215,62 @@ GROUP BY
     OrderYear, MonthName
 ORDER BY
     OrderYear, MONTH(orderDate);
-    
+
+/*14)	Display the customer numbers and customer names 
+from customers table who have not placed any orders using subquery*/
+
+select customerNumber,
+customerName
+from customers where customerNumber not in (
+select customerNumber from orders);
+
+/*15)	Write a full outer join between customers and orders using union 
+and get the customer number, customer name, count of orders for every customer.
+Table: Customers, Orders
+*/
+
+SELECT c.customerNumber, c.customerName, COUNT(o.orderNumber) AS orderCount
+FROM Customers c
+LEFT JOIN Orders o ON c.customerNumber = o.customerNumber
+GROUP BY c.customerNumber, c.customerName
+UNION
+SELECT c.customerNumber, c.customerName, COUNT(o.orderNumber) AS orderCount
+FROM Customers c
+RIGHT JOIN Orders o ON c.customerNumber = o.customerNumber
+GROUP BY c.customerNumber, c.customerName;
+
+/*16)	Show the second highest quantity ordered value for each order number.
+Table: Orderdetails
+*/
+
+select orderNumber,
+max(quantityOrdered) as quantityOrdered
+from orderdetails where
+quantityOrdered<
+(select max(quantityOrdered)
+from orderdetails)
+group by orderNumber;
+
+/*17)	For each order number count the number of products and then find the min and max of the values among count of orders.
+Table: Orderdetails*/
+
+with t as 
+(select orderNumber,
+count(productCode) as number_of_products
+from orderdetails
+group by orderNumber)
+select max(number_of_products) Max_Total,
+min(number_of_products) Min_Total
+from t;
+
+/*18)	Find out how many product lines are there for which the buy price value is 
+greater than the average of buy price value. 
+Show the output as product line and its count.*/
+
+select productLine,
+count(productLine) as product_Lines
+from products
+where buyPrice>
+(select avg(buyPrice)
+from products)
+group by productLine;
